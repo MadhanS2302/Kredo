@@ -12,6 +12,7 @@ export type JobRow = {
   status: "pending" | "confirmed" | "rejected" | "expired";
   confirm_token: string;
   rating: number | null;
+  confidence: "high" | "medium" | "low" | null;
 };
 
 const badge: Record<JobRow["status"], string> = {
@@ -19,6 +20,12 @@ const badge: Record<JobRow["status"], string> = {
   confirmed: "bg-green-500/20 text-green-500",
   rejected: "bg-red-500/20 text-red-500",
   expired: "bg-gray-500/20 text-gray-400",
+};
+
+const confColor: Record<string, string> = {
+  high: "text-green-500",
+  medium: "text-yellow-500",
+  low: "text-red-400",
 };
 
 export default function JobList({
@@ -70,6 +77,11 @@ export default function JobList({
                 {job.status}
                 {job.rating ? ` · ${job.rating}★` : ""}
               </span>
+              {job.status === "confirmed" && job.confidence && (
+                <p className={`text-xs mt-1 ${confColor[job.confidence]}`}>
+                  {job.confidence} confidence
+                </p>
+              )}
             </div>
           </div>
           {job.status === "pending" && (

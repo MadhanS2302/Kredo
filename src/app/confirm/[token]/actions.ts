@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizePhone } from "@/lib/phone";
+import { scoreJob } from "@/lib/confidence";
 
 export type ConfirmState = { error?: string; done?: "confirmed" | "rejected" } | null;
 
@@ -22,7 +23,7 @@ export async function confirmJob(
   const admin = createAdminClient();
   const { data: job } = await admin
     .from("jobs")
-    .select("id, status, customer_phone, created_at")
+    .select("id, status, customer_phone, created_at, worker_id, amount")
     .eq("confirm_token", token)
     .single();
 
@@ -43,10 +44,49 @@ export async function confirmJob(
   if (decision === "confirm" && !(rating >= 1 && rating <= 5))
     return { error: "Please give a rating from 1 to 5 stars." };
 
-  const update =
-    decision === "confirm"
-      ? { status: "confirmed", rating, confirmed_at: new Date().toISOString() }
-      : { status: "rejected" };
+  let update: Record<string, unknown>;
+  if (decision === "confirm") {
+    const confirmedAt = new Date().toISOString();
+    const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+
+    const [{ data: workerRecent }, { data: customerHistory }] = await Promise.all([
+      admin
+        .from("jobs")
+        .select("amount, customer_phone")
+        .eq("worker_id", job.worker_id)
+        .eq("status", "confirmed")
+        .gte("confirmed_at", since)
+        .neq("id", job.id),
+      admin
+        .from("jobs")
+        .select("worker_id")
+        .eq("customer_phone", job.customer_phone)
+        .eq("status", "confirmed")
+        .neq("id", job.id),
+    ]);
+
+    const result = scoreJob({
+      job: {
+        amount: job.amount,
+        createdAt: job.created_at,
+        confirmedAt,
+        customerPhone: job.customer_phone,
+        workerId: job.worker_id,
+      },
+      workerRecent: workerRecent ?? [],
+      customerHistory: customerHistory ?? [],
+    });
+
+    update = {
+      status: "confirmed",
+      rating,
+      confirmed_at: confirmedAt,
+      confidence: result.confidence,
+      flags: result.flags,
+    };
+  } else {
+    update = { status: "rejected" };
+  }
 
   const { error } = await admin
     .from("jobs")

@@ -25,7 +25,7 @@ export default async function PublicProfile({
 
   const { data: jobs } = await admin
     .from("jobs")
-    .select("job_type, amount, job_date, rating, customer_phone")
+    .select("job_type, amount, job_date, rating, customer_phone, confidence")
     .eq("worker_id", worker.id)
     .eq("status", "confirmed")
     .order("job_date", { ascending: false });
@@ -43,6 +43,11 @@ export default async function PublicProfile({
   );
   const distinct = perCustomer.size;
   const repeat = [...perCustomer.values()].filter((n) => n >= 2).length;
+
+  const conf = { high: 0, medium: 0, low: 0 } as Record<string, number>;
+  confirmed.forEach((j) => {
+    if (j.confidence) conf[j.confidence] += 1;
+  });
 
   const h = await headers();
   const host = h.get("host") ?? "localhost:3000";
@@ -78,6 +83,26 @@ export default async function PublicProfile({
           </div>
         ))}
       </section>
+
+      {confirmed.length > 0 && (
+        <section className="space-y-1">
+          <h2 className="font-semibold">Confidence of confirmed jobs</h2>
+          <div className="flex gap-2 text-sm">
+            <span className="px-2 py-1 rounded bg-green-500/20 text-green-500">
+              High {conf.high}
+            </span>
+            <span className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-500">
+              Medium {conf.medium}
+            </span>
+            <span className="px-2 py-1 rounded bg-red-500/20 text-red-400">
+              Low {conf.low}
+            </span>
+          </div>
+          <p className="text-xs text-gray-500">
+            Based on checks such as repeat customers and unusual patterns, not just a confirmation.
+          </p>
+        </section>
+      )}
 
       <section className="space-y-2">
         <h2 className="font-semibold">Recent verified work</h2>

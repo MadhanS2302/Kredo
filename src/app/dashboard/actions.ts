@@ -56,6 +56,16 @@ export async function createJob(
   if ((count ?? 0) >= MAX_JOBS_PER_DAY)
     return { error: `Daily limit of ${MAX_JOBS_PER_DAY} jobs reached.` };
 
+  // Fraud rule 2b: same customer at most 3 jobs per day
+  const { count: pairToday } = await supabase
+    .from("jobs")
+    .select("id", { count: "exact", head: true })
+    .eq("worker_id", user.id)
+    .eq("customer_phone", customerPhone)
+    .gte("created_at", startOfDay.toISOString());
+  if ((pairToday ?? 0) >= 3)
+    return { error: "Max 3 jobs per day for the same customer." };
+
   // Fraud rule 3: no exact duplicates
   const { count: dup } = await supabase
     .from("jobs")
