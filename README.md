@@ -12,7 +12,7 @@ Your work, your proof.
 
 ## Setup
 1. Unzip over your existing `kredo` folder.
-2. Delete `src/lib/email.ts` (no longer used).
+2. `src/lib/email.ts` is now an empty placeholder (you can delete it later).
 3. Run `npm install` (nodemailer is removed from package.json).
 4. In `.env.local` and Vercel keep: Supabase keys, `NEXT_PUBLIC_SITE_URL`, optional `ADMIN_EMAILS`. The SMTP_* and MAIL_FROM variables are no longer needed.
 5. Supabase -> Authentication -> Emails: keep custom SMTP (Brevo) for the login code, with `{{ .Token }}` in the Magic Link and Confirm signup templates.
