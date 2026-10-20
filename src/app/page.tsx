@@ -18,7 +18,7 @@ export default function Home() {
             Your work, your proof.
           </h1>
           <p className="max-w-md text-lg text-mute">
-            Log each job you finish. Your customer confirms it from an email link. Kredo turns
+            Log each job you finish. Your customer confirms it from a rating link you send on WhatsApp. Kredo turns
             the confirmed jobs into a profile and a monthly income statement that banks and
             landlords can check.
           </p>
@@ -49,8 +49,8 @@ export default function Home() {
 
       <section className="mt-20 grid gap-8 md:grid-cols-3">
         {[
-          ["Log the job", "After the work, enter the customer’s email, the job and the amount. It takes under a minute."],
-          ["Customer confirms", "They get an email with a link you cannot see, and rate the work. Only then does the job count."],
+          ["Log the job", "After the work, enter the customer’s mobile number, the job and the amount. It takes under a minute."],
+          ["Customer confirms", "You share a rating link on WhatsApp. The customer opens it, rates the work and confirms. Only then does the job count."],
           ["Share your proof", "Show your profile with a QR code, or download an income statement that anyone can verify online."],
         ].map(([title, body], i) => (
           <div key={title} className="border-t-2 border-ink pt-4">

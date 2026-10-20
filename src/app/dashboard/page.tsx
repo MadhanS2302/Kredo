@@ -21,7 +21,7 @@ export default async function DashboardPage() {
     supabase
       .from("jobs")
       .select(
-        "id, customer_name, customer_phone, customer_email, job_type, amount, job_date, status, rating, confidence, email_sends"
+        "id, customer_name, customer_phone, job_type, amount, job_date, status, rating, confidence"
       )
       .order("created_at", { ascending: false })
       .limit(50),

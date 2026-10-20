@@ -1,21 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import ConfidenceDots from "@/components/ConfidenceDots";
-import { resendEmail } from "./actions";
+import ShareButtons from "./share-buttons";
 
 export type JobRow = {
   id: string;
   customer_name: string;
   customer_phone: string | null;
-  customer_email: string | null;
   job_type: string;
   amount: number;
   job_date: string;
   status: "pending" | "confirmed" | "rejected" | "expired";
   rating: number | null;
   confidence: "high" | "medium" | "low" | null;
-  email_sends: number;
 };
 
 const statusStyle: Record<JobRow["status"], { text: string; label: string }> = {
@@ -27,35 +24,19 @@ const statusStyle: Record<JobRow["status"], { text: string; label: string }> = {
 
 export default function JobList({
   jobs,
-  workerName,
   onLogJob,
 }: {
   jobs: JobRow[];
-  workerName: string;
+  workerName?: string;
   onLogJob: () => void;
 }) {
-  const [note, setNote] = useState<Record<string, string>>({});
-  const [pending, start] = useTransition();
-
-  function resend(job: JobRow) {
-    start(async () => {
-      const r = await resendEmail(job.id);
-      setNote((n) => ({ ...n, [job.id]: r.ok ? "Email sent again." : (r.error ?? "Could not send.") }));
-    });
-  }
-
-  function remind(job: JobRow) {
-    const text =
-      `Hello ${job.customer_name}, this is ${workerName}. I sent you an email from Kredo to ` +
-      `confirm the ${job.job_type} work (₹${job.amount}). Please check your inbox or spam and tap the link.`;
-    window.open(`https://wa.me/91${job.customer_phone}?text=${encodeURIComponent(text)}`, "_blank");
-  }
-
   if (jobs.length === 0)
     return (
       <div className="sheet p-6 text-center">
         <p className="font-display text-xl font-bold">No jobs yet</p>
-        <p className="mt-1 text-mute">After your next visit, log the job here. We email the customer to confirm it.</p>
+        <p className="mt-1 text-mute">
+          After your next visit, log the job here. You send the customer a rating link on WhatsApp.
+        </p>
         <div className="mx-auto mt-4 max-w-xs">
           <button onClick={onLogJob} className="btn">Log your first job</button>
         </div>
@@ -86,23 +67,8 @@ export default function JobList({
               </span>
             </div>
             {job.status === "pending" && (
-              <div className="space-y-2 pt-1">
-                {job.customer_email && (
-                  <p className="hint break-all">Email sent to {job.customer_email}</p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {job.customer_email && job.email_sends < 3 && (
-                    <button onClick={() => resend(job)} disabled={pending} className="btn btn-small">
-                      Resend email
-                    </button>
-                  )}
-                  {job.customer_phone && (
-                    <button onClick={() => remind(job)} className="btn btn-quiet btn-small">
-                      Remind on WhatsApp
-                    </button>
-                  )}
-                </div>
-                {note[job.id] && <p className="hint">{note[job.id]}</p>}
+              <div className="pt-1">
+                <ShareButtons jobId={job.id} />
               </div>
             )}
           </li>

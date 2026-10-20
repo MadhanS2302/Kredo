@@ -4,15 +4,14 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidIndianMobile, normalizePhone } from "@/lib/phone";
-import { confirmationEmail, sendEmail } from "@/lib/email";
 import { getOrigin } from "@/lib/origin";
+import { shareMessage, type ShareInfo } from "@/lib/share";
 
-export type CreateJobState = { error?: string; success?: string } | null;
-export type ResendState = { error?: string; ok?: boolean };
+export type CreateJobState = { error?: string; created?: ShareInfo } | null;
+export type JobLinkResult = { error?: string; share?: ShareInfo };
 
 const MAX_JOBS_PER_DAY = 10;
-const MAX_EMAILS_PER_JOB = 3;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const LINK_VALID_DAYS = 7;
 
 export async function createJob(
   _prev: CreateJobState,
@@ -26,24 +25,20 @@ export async function createJob(
 
   const { data: worker } = await supabase
     .from("workers")
-    .select("id, name")
+    .select("id, name, phone")
     .eq("id", user.id)
     .single();
   if (!worker) return { error: "Finish setting up your profile first." };
 
   const customerName = String(formData.get("customer_name") ?? "").trim();
-  const customerEmail = String(formData.get("customer_email") ?? "").trim().toLowerCase();
-  const phoneRaw = String(formData.get("customer_phone") ?? "").trim();
-  const customerPhone = phoneRaw ? normalizePhone(phoneRaw) : "";
+  const customerPhone = normalizePhone(String(formData.get("customer_phone") ?? ""));
   const jobType = String(formData.get("job_type") ?? "").trim();
   const amount = Number(formData.get("amount"));
   const jobDate = String(formData.get("job_date") ?? "");
 
   if (customerName.length < 2) return { error: "Enter the customer's name." };
-  if (customerEmail.length > 254 || !EMAIL_RE.test(customerEmail))
-    return { error: "Enter a valid customer email address." };
-  if (customerPhone && !isValidIndianMobile(customerPhone))
-    return { error: "The mobile number must be 10 digits, or leave it empty." };
+  if (!isValidIndianMobile(customerPhone))
+    return { error: "Enter the customer's 10-digit mobile number." };
   if (jobType.length < 3) return { error: "Describe the job, for example fan repair." };
   if (!Number.isInteger(amount) || amount < 50 || amount > 100000)
     return { error: "Amount must be a whole number between 50 and 100000." };
@@ -51,8 +46,8 @@ export async function createJob(
   if (new Date(jobDate) > new Date()) return { error: "The job date cannot be in the future." };
 
   // Fraud rule 1: you cannot confirm your own job
-  if (customerEmail === (user.email ?? "").toLowerCase())
-    return { error: "The customer email cannot be your own email." };
+  if (worker.phone && normalizePhone(worker.phone) === customerPhone)
+    return { error: "The customer number cannot be your own number." };
 
   // Fraud rule 2: daily limit
   const startOfDay = new Date();
@@ -70,7 +65,7 @@ export async function createJob(
     .from("jobs")
     .select("id", { count: "exact", head: true })
     .eq("worker_id", user.id)
-    .eq("customer_email", customerEmail)
+    .eq("customer_phone", customerPhone)
     .gte("created_at", startOfDay.toISOString());
   if ((pairToday ?? 0) >= 3) return { error: "Max 3 jobs per day for the same customer." };
 
@@ -79,23 +74,21 @@ export async function createJob(
     .from("jobs")
     .select("id", { count: "exact", head: true })
     .eq("worker_id", user.id)
-    .eq("customer_email", customerEmail)
+    .eq("customer_phone", customerPhone)
     .eq("job_type", jobType)
     .eq("amount", amount)
     .eq("job_date", jobDate)
     .in("status", ["pending", "confirmed"]);
   if ((dup ?? 0) > 0) return { error: "This exact job is already logged." };
 
-  // Insert on the server. Workers cannot read the confirmation token, so only the
-  // customer's inbox ever receives the link.
+  // Insert on the server (workers have no direct insert permission on jobs).
   const admin = createAdminClient();
   const { data: job, error } = await admin
     .from("jobs")
     .insert({
       worker_id: user.id,
       customer_name: customerName,
-      customer_email: customerEmail,
-      customer_phone: customerPhone || null,
+      customer_phone: customerPhone,
       job_type: jobType,
       amount,
       job_date: jobDate,
@@ -105,38 +98,43 @@ export async function createJob(
   if (error || !job) return { error: "Could not save the job. Please try again." };
 
   const link = `${await getOrigin()}/confirm/${job.confirm_token}`;
-  const mail = await sendEmail({
-    to: customerEmail,
-    ...confirmationEmail({ workerName: worker.name, jobType, amount, jobDate, link }),
-  });
-
   revalidatePath("/dashboard");
-  return mail.ok
-    ? { success: `Saved. We emailed ${customerEmail} a link to confirm this job.` }
-    : { success: `Saved, but the email failed: ${mail.error} Open the job and tap "Resend email".` };
+  return {
+    created: {
+      link,
+      phone: customerPhone,
+      message: shareMessage({
+        customerName,
+        workerName: worker.name,
+        jobType,
+        amount,
+        link,
+      }),
+    },
+  };
 }
 
-export async function resendEmail(jobId: string): Promise<ResendState> {
+// Returns the rating link of one of the worker's own pending jobs, so it can be copied or
+// shared on WhatsApp. The token is read with the server key; the session client first proves
+// the job belongs to this worker.
+export async function getJobLink(jobId: string): Promise<JobLinkResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Please sign in again." };
 
-  // Reads go through the worker's own session, so they can only touch their own jobs.
   const { data: job } = await supabase
     .from("jobs")
-    .select("id, status, customer_email, job_type, amount, job_date, email_sends, created_at")
+    .select("id, status, customer_name, customer_phone, job_type, amount, created_at")
     .eq("id", jobId)
     .single();
   const { data: worker } = await supabase.from("workers").select("name").eq("id", user.id).single();
 
-  if (!job || !worker || !job.customer_email) return { error: "Job not found." };
+  if (!job || !worker) return { error: "Job not found." };
   if (job.status !== "pending") return { error: "This job was already answered." };
-  if ((Date.now() - new Date(job.created_at).getTime()) / 86_400_000 > 7)
-    return { error: "This job is older than 7 days. Please log it again." };
-  if (job.email_sends >= MAX_EMAILS_PER_JOB)
-    return { error: "You have already sent this email 3 times." };
+  if ((Date.now() - new Date(job.created_at).getTime()) / 86_400_000 > LINK_VALID_DAYS)
+    return { error: "This link has expired. Please log the job again." };
 
   const admin = createAdminClient();
   const { data: secret } = await admin
@@ -147,21 +145,19 @@ export async function resendEmail(jobId: string): Promise<ResendState> {
   if (!secret) return { error: "Job not found." };
 
   const link = `${await getOrigin()}/confirm/${secret.confirm_token}`;
-  const mail = await sendEmail({
-    to: job.customer_email,
-    ...confirmationEmail({
-      workerName: worker.name,
-      jobType: job.job_type,
-      amount: job.amount,
-      jobDate: job.job_date,
+  return {
+    share: {
       link,
-    }),
-  });
-  if (!mail.ok) return { error: mail.error };
-
-  await admin.from("jobs").update({ email_sends: job.email_sends + 1 }).eq("id", job.id);
-  revalidatePath("/dashboard");
-  return { ok: true };
+      phone: job.customer_phone,
+      message: shareMessage({
+        customerName: job.customer_name,
+        workerName: worker.name,
+        jobType: job.job_type,
+        amount: job.amount,
+        link,
+      }),
+    },
+  };
 }
 
 export async function logout() {

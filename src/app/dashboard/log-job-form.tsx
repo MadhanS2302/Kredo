@@ -2,17 +2,29 @@
 
 import { useActionState } from "react";
 import { createJob, type CreateJobState } from "./actions";
+import ShareButtons from "./share-buttons";
 
 export default function LogJobForm({ onSaved }: { onSaved: () => void }) {
-  const [state, action, pending] = useActionState<CreateJobState, FormData>(
-    async (prev, formData) => {
-      const result = await createJob(prev, formData);
-      if (result?.success) onSaved();
-      return result;
-    },
-    null
-  );
+  const [state, action, pending] = useActionState<CreateJobState, FormData>(createJob, null);
   const today = new Date().toISOString().slice(0, 10);
+
+  if (state?.created)
+    return (
+      <div className="space-y-4">
+        <div>
+          <p className="font-display text-xl font-bold text-ok">Job saved</p>
+          <p className="mt-1 text-mute">
+            Send this rating link to the customer. When they open it, confirm the job and rate your
+            work, the job counts.
+          </p>
+        </div>
+        <p className="sheet break-all p-3 text-sm">{state.created.link}</p>
+        <ShareButtons info={state.created} />
+        <button type="button" onClick={onSaved} className="btn btn-quiet">
+          Done
+        </button>
+      </div>
+    );
 
   return (
     <form action={action} className="space-y-4">
@@ -22,25 +34,7 @@ export default function LogJobForm({ onSaved }: { onSaved: () => void }) {
       </div>
 
       <div>
-        <label htmlFor="customer_email" className="label">Customer email</label>
-        <input
-          id="customer_email"
-          name="customer_email"
-          type="email"
-          inputMode="email"
-          className="field"
-          placeholder="customer@example.com"
-          autoComplete="off"
-          required
-        />
-        <p className="hint mt-1">
-          We email them a link to confirm the job. You never see the link, which is what makes the
-          confirmation count.
-        </p>
-      </div>
-
-      <div>
-        <label htmlFor="customer_phone" className="label">Customer mobile (optional)</label>
+        <label htmlFor="customer_phone" className="label">Customer mobile</label>
         <div className="flex gap-2">
           <span className="field flex w-20 items-center justify-center bg-paper font-semibold">+91</span>
           <input
@@ -50,9 +44,13 @@ export default function LogJobForm({ onSaved }: { onSaved: () => void }) {
             inputMode="numeric"
             maxLength={10}
             placeholder="10-digit number"
+            autoComplete="off"
+            required
           />
         </div>
-        <p className="hint mt-1">Only used so you can remind them on WhatsApp to check their email.</p>
+        <p className="hint mt-1">
+          We make a rating link for this customer. You send it on WhatsApp in the next step.
+        </p>
       </div>
 
       <div>
@@ -90,7 +88,7 @@ export default function LogJobForm({ onSaved }: { onSaved: () => void }) {
 
       {state?.error && <p className="error" role="alert">{state.error}</p>}
       <button disabled={pending} className="btn">
-        {pending ? "Saving and emailing…" : "Save job and email customer"}
+        {pending ? "Saving…" : "Save job and get link"}
       </button>
     </form>
   );

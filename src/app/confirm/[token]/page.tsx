@@ -55,8 +55,8 @@ export default async function ConfirmPage({
           {job.status === "pending" ? (
             <>
               <p className="mb-4 text-mute">
-                {workerName} entered your email address to confirm this job. Rate the work and
-                answer below. If you do not know {workerName}, just close this page.
+                {workerName} sent you this link to confirm this job. Rate the work and answer
+                below. If you do not know {workerName}, just close this page.
               </p>
               <ConfirmFlow token={token} workerName={workerName} />
             </>

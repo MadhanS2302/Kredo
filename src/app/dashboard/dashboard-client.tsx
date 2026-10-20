@@ -84,7 +84,7 @@ export default function DashboardClient({ worker, jobs, months, confirmedCount, 
         {tab === "jobs" && (
           <section aria-labelledby="jobs-h" className="space-y-3">
             <h2 id="jobs-h" className="font-display text-xl font-bold">Your jobs</h2>
-            <JobList jobs={jobs} workerName={worker.name} onLogJob={() => setTab("log")} />
+            <JobList jobs={jobs} onLogJob={() => setTab("log")} />
           </section>
         )}
 
