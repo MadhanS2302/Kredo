@@ -2,6 +2,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import DashboardClient, { type MonthRow } from "./dashboard-client";
 import type { JobRow } from "./job-list";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getOrigin } from "@/lib/origin";
+import { shareMessage } from "@/lib/share";
+
+const LINK_VALID_MS = 7 * 86_400_000;
+const linkStillValid = (createdAt: string) =>
+  Date.now() - new Date(createdAt).getTime() <= LINK_VALID_MS;
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -21,12 +28,56 @@ export default async function DashboardPage() {
     supabase
       .from("jobs")
       .select(
-        "id, customer_name, customer_phone, job_type, amount, job_date, status, rating, confidence"
+        "id, customer_name, customer_phone, job_type, amount, job_date, status, rating, confidence, created_at"
       )
       .order("created_at", { ascending: false })
       .limit(50),
     supabase.from("jobs").select("amount, job_date").eq("status", "confirmed"),
   ]);
+
+  // Build the rating link for each pending job here on the server, so the WhatsApp button
+  // is a plain link that is ready before the worker taps it.
+  const pendingIds = (jobs ?? [])
+    .filter((j) => j.status === "pending" && linkStillValid(j.created_at))
+    .map((j) => j.id);
+  const tokens = new Map<string, string>();
+  if (pendingIds.length > 0) {
+    const { data: secrets } = await createAdminClient()
+      .from("jobs")
+      .select("id, confirm_token")
+      .eq("worker_id", user.id)
+      .in("id", pendingIds);
+    (secrets ?? []).forEach((r) => tokens.set(r.id, r.confirm_token));
+  }
+  const origin = await getOrigin();
+  const jobRows: JobRow[] = (jobs ?? []).map((j) => {
+    const token = tokens.get(j.id);
+    const link = token ? `${origin}/confirm/${token}` : null;
+    return {
+      id: j.id,
+      customer_name: j.customer_name,
+      customer_phone: j.customer_phone,
+      job_type: j.job_type,
+      amount: j.amount,
+      job_date: j.job_date,
+      status: j.status,
+      rating: j.rating,
+      confidence: j.confidence,
+      share: link
+        ? {
+            link,
+            phone: j.customer_phone,
+            message: shareMessage({
+              customerName: j.customer_name,
+              workerName: worker.name,
+              jobType: j.job_type,
+              amount: j.amount,
+              link,
+            }),
+          }
+        : null,
+    };
+  });
 
   const confirmed = confirmedRows ?? [];
   const income = confirmed.reduce((s, j) => s + j.amount, 0);
@@ -53,7 +104,7 @@ export default async function DashboardPage() {
   return (
     <DashboardClient
       worker={worker}
-      jobs={(jobs ?? []) as JobRow[]}
+      jobs={jobRows}
       months={months}
       confirmedCount={confirmed.length}
       income={income}

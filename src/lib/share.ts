@@ -20,10 +20,19 @@ export function shareMessage(a: {
   );
 }
 
-// Opens the WhatsApp chat with the customer (number filled in) and the message ready to send.
+function digitsOf(phone: string | null | undefined): string {
+  return (phone ?? "").replace(/\D/g, "").slice(-10);
+}
+
+// Phones: opens the WhatsApp app directly in the customer's chat, message ready to send.
 // If an old job has no mobile number, WhatsApp opens its contact picker instead.
-export function whatsappUrl(phone: string | null | undefined, text: string): string {
-  const digits = (phone ?? "").replace(/\D/g, "").slice(-10);
-  const to = digits.length === 10 ? `phone=91${digits}&` : "";
-  return `https://api.whatsapp.com/send?${to}text=${encodeURIComponent(text)}`;
+export function whatsappAppUrl(phone: string | null | undefined, text: string): string {
+  const d = digitsOf(phone);
+  return `whatsapp://send?${d.length === 10 ? `phone=91${d}&` : ""}text=${encodeURIComponent(text)}`;
+}
+
+// Computers: WhatsApp Web in a new tab.
+export function whatsappWebUrl(phone: string | null | undefined, text: string): string {
+  const d = digitsOf(phone);
+  return `https://api.whatsapp.com/send?${d.length === 10 ? `phone=91${d}&` : ""}text=${encodeURIComponent(text)}`;
 }

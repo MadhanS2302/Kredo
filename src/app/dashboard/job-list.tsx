@@ -2,6 +2,7 @@
 
 import ConfidenceDots from "@/components/ConfidenceDots";
 import ShareButtons from "./share-buttons";
+import type { ShareInfo } from "@/lib/share";
 
 export type JobRow = {
   id: string;
@@ -13,6 +14,8 @@ export type JobRow = {
   status: "pending" | "confirmed" | "rejected" | "expired";
   rating: number | null;
   confidence: "high" | "medium" | "low" | null;
+  /** Rating link + WhatsApp message. Only for pending jobs whose link is still valid. */
+  share: ShareInfo | null;
 };
 
 const statusStyle: Record<JobRow["status"], { text: string; label: string }> = {
@@ -68,7 +71,11 @@ export default function JobList({
             </div>
             {job.status === "pending" && (
               <div className="pt-1">
-                <ShareButtons jobId={job.id} />
+                {job.share ? (
+                  <ShareButtons info={job.share} />
+                ) : (
+                  <p className="hint">This link has expired. Log the job again.</p>
+                )}
               </div>
             )}
           </li>
