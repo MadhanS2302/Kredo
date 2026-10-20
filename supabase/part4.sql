@@ -16,5 +16,5 @@ create table if not exists statements (
   issued_at timestamptz default now()
 );
 
-
+-- No policies on purpose: only the server (service-role key) can read or write statements.
 alter table statements enable row level security;

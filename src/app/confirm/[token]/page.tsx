@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import ConfirmForm from "./confirm-form";
+import ConfirmFlow from "./confirm-flow";
+import Wordmark from "@/components/Wordmark";
+import Stamp from "@/components/Stamp";
 
 export default async function ConfirmPage({
   params,
@@ -17,32 +19,57 @@ export default async function ConfirmPage({
 
   if (!job)
     return (
-      <main className="mx-auto max-w-sm p-6">
-        <h1 className="text-xl font-bold">Link not valid</h1>
-        <p className="text-gray-500 mt-2">Please check the link you received.</p>
+      <main className="mx-auto w-full max-w-md px-5 pt-6">
+        <Wordmark />
+        <h1 className="font-display mt-12 text-3xl font-extrabold">This link does not work</h1>
+        <p className="mt-2 text-mute">
+          Check that you opened the full link from the message, or ask the worker to send it again.
+        </p>
       </main>
     );
 
   const worker = (Array.isArray(job.workers) ? job.workers[0] : job.workers) as
     | { name: string; trade: string }
     | null;
+  const workerName = worker?.name ?? "The worker";
 
   return (
-    <main className="mx-auto max-w-sm p-6 space-y-5">
-      <h1 className="text-2xl font-bold">Kredo</h1>
-      <div className="border rounded p-4 space-y-1">
-        <p className="text-sm text-gray-500">{worker?.name} says they did this job for you:</p>
-        <p className="text-lg font-semibold capitalize">{job.job_type}</p>
-        <p>₹{job.amount.toLocaleString("en-IN")} · {job.job_date}</p>
-      </div>
+    <main className="mx-auto w-full max-w-md px-5 pt-6 pb-12">
+      <Wordmark />
+      <h1 className="font-display mt-10 text-3xl font-extrabold leading-tight tracking-tight">
+        Did {workerName} do this work for you?
+      </h1>
 
-      {job.status === "pending" ? (
-        <ConfirmForm token={token} />
-      ) : (
-        <p className="text-gray-500 text-center">
-          This job was already answered ({job.status}).
-        </p>
-      )}
+      <div className="sheet mt-6 p-5">
+        <p className="hint">Job slip</p>
+        <div className="ledger mt-2">
+          <span className="font-display text-xl font-bold capitalize">{job.job_type}</span>
+          <span className="dots" />
+          <span className="font-display text-xl font-bold">
+            ₹{job.amount.toLocaleString("en-IN")}
+          </span>
+        </div>
+        <p className="hint mt-1">{job.job_date}</p>
+
+        <div className="tear">
+          {job.status === "pending" ? (
+            <>
+              <p className="mb-4 text-mute">
+                {workerName} entered your email address to confirm this job. Rate the work and
+                answer below. If you do not know {workerName}, just close this page.
+              </p>
+              <ConfirmFlow token={token} workerName={workerName} />
+            </>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-mute">
+                This job was already answered ({job.status}).
+              </p>
+              {job.status === "confirmed" && <Stamp count={1} size={84} />}
+            </div>
+          )}
+        </div>
+      </div>
     </main>
   );
 }

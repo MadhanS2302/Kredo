@@ -1,12 +1,11 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizePhone } from "@/lib/phone";
 import { scoreJob } from "@/lib/confidence";
 
-export type ConfirmState = { error?: string; done?: "confirmed" | "rejected" } | null;
-
 const EXPIRY_DAYS = 7;
+
+export type ConfirmState = { error?: string; done?: "confirmed" | "rejected" } | null;
 
 export async function confirmJob(
   token: string,
@@ -14,16 +13,14 @@ export async function confirmJob(
   formData: FormData
 ): Promise<ConfirmState> {
   const decision = String(formData.get("decision") ?? "");
-  const phone = normalizePhone(String(formData.get("phone") ?? ""));
   const rating = Number(formData.get("rating") ?? 0);
 
-  if (decision !== "confirm" && decision !== "reject")
-    return { error: "Choose Confirm or Reject." };
+  if (decision !== "confirm" && decision !== "reject") return { error: "Choose Yes or No." };
 
   const admin = createAdminClient();
   const { data: job } = await admin
     .from("jobs")
-    .select("id, status, customer_phone, created_at, worker_id, amount")
+    .select("id, status, customer_email, customer_phone, created_at, worker_id, amount")
     .eq("confirm_token", token)
     .single();
 
@@ -36,33 +33,32 @@ export async function confirmJob(
     return { error: "This link has expired. Ask the worker to log the job again." };
   }
 
-  // MVP identity check: customer must type the phone number the worker entered.
-  // (Replace with a real SMS/WhatsApp OTP before the pilot.)
-  if (phone !== job.customer_phone)
-    return { error: "That number doesn't match the one on this job." };
-
   if (decision === "confirm" && !(rating >= 1 && rating <= 5))
-    return { error: "Please give a rating from 1 to 5 stars." };
+    return { error: "Tap the stars to rate the work from 1 to 5." };
 
   let update: Record<string, unknown>;
   if (decision === "confirm") {
     const confirmedAt = new Date().toISOString();
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const customerKey = (job.customer_email ?? job.customer_phone ?? "").toLowerCase();
+
+    const historyQuery = admin
+      .from("jobs")
+      .select("worker_id")
+      .eq("status", "confirmed")
+      .neq("id", job.id);
 
     const [{ data: workerRecent }, { data: customerHistory }] = await Promise.all([
       admin
         .from("jobs")
-        .select("amount, customer_phone")
+        .select("amount, customer_email, customer_phone")
         .eq("worker_id", job.worker_id)
         .eq("status", "confirmed")
         .gte("confirmed_at", since)
         .neq("id", job.id),
-      admin
-        .from("jobs")
-        .select("worker_id")
-        .eq("customer_phone", job.customer_phone)
-        .eq("status", "confirmed")
-        .neq("id", job.id),
+      job.customer_email
+        ? historyQuery.eq("customer_email", job.customer_email)
+        : historyQuery.eq("customer_phone", job.customer_phone ?? ""),
     ]);
 
     const result = scoreJob({
@@ -70,10 +66,13 @@ export async function confirmJob(
         amount: job.amount,
         createdAt: job.created_at,
         confirmedAt,
-        customerPhone: job.customer_phone,
+        customerKey,
         workerId: job.worker_id,
       },
-      workerRecent: workerRecent ?? [],
+      workerRecent: (workerRecent ?? []).map((j) => ({
+        amount: j.amount,
+        customerKey: (j.customer_email ?? j.customer_phone ?? "").toLowerCase(),
+      })),
       customerHistory: customerHistory ?? [],
     });
 

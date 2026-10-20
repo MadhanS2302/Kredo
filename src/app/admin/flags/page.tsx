@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizePhone } from "@/lib/phone";
 
 export default async function FlagsPage() {
   const supabase = await createClient();
@@ -10,12 +9,12 @@ export default async function FlagsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Admins = 10-digit numbers listed in ADMIN_PHONES (comma separated) in your environment.
-  const admins = (process.env.ADMIN_PHONES ?? "")
+  // Admins = emails listed in ADMIN_EMAILS (comma separated) in your environment.
+  const admins = (process.env.ADMIN_EMAILS ?? "")
     .split(",")
-    .map((p) => normalizePhone(p))
+    .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  if (!admins.includes(normalizePhone(user.phone))) notFound();
+  if (!admins.includes((user.email ?? "").toLowerCase())) notFound();
 
   const admin = createAdminClient();
   const { data } = await admin
@@ -32,31 +31,31 @@ export default async function FlagsPage() {
   );
 
   return (
-    <main className="mx-auto max-w-2xl p-6 space-y-4">
-      <h1 className="text-2xl font-bold">Flag review</h1>
-      <p className="text-sm text-gray-500">
+    <main className="mx-auto w-full max-w-2xl px-5 py-8 space-y-4">
+      <h1 className="font-display text-3xl font-extrabold">Flag review</h1>
+      <p className="hint">
         Confirmed jobs scored low or carrying a flag (latest 300 checked): {flagged.length}
       </p>
-      {flagged.length === 0 && <p className="text-gray-500">Nothing flagged. 🎉</p>}
+      {flagged.length === 0 && <p className="text-mute">Nothing flagged. 🎉</p>}
       <ul className="space-y-2">
         {flagged.map((j) => {
           const w = (Array.isArray(j.workers) ? j.workers[0] : j.workers) as
             | { name: string; area: string | null }
             | null;
           return (
-            <li key={j.id} className="border rounded p-3 text-sm space-y-1">
+            <li key={j.id} className="sheet p-3 text-sm space-y-1">
               <div className="flex justify-between">
                 <span className="font-medium">
                   {w?.name} · {j.job_type}
                 </span>
                 <span>₹{j.amount.toLocaleString("en-IN")}</span>
               </div>
-              <div className="text-gray-500">
+              <div className="text-mute">
                 {j.job_date} · confidence: {j.confidence ?? "-"}
               </div>
               <div className="flex gap-1 flex-wrap">
                 {(j.flags ?? []).map((f: string) => (
-                  <span key={f} className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">
+                  <span key={f} className="text-xs px-2 py-0.5 rounded bg-bad/10 text-bad">
                     {f}
                   </span>
                 ))}

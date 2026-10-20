@@ -11,7 +11,7 @@ export default function LogoutButton() {
         await logout();
         router.push("/login");
       }}
-      className="text-sm border rounded px-3 py-1 hover:bg-white/10"
+      className="min-h-10 px-2 font-semibold text-stamp underline underline-offset-4"
     >
       Log out
     </button>

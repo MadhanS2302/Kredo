@@ -1,107 +1,113 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import ConfidenceDots from "@/components/ConfidenceDots";
+import { resendEmail } from "./actions";
 
 export type JobRow = {
   id: string;
   customer_name: string;
-  customer_phone: string;
+  customer_phone: string | null;
+  customer_email: string | null;
   job_type: string;
   amount: number;
   job_date: string;
   status: "pending" | "confirmed" | "rejected" | "expired";
-  confirm_token: string;
   rating: number | null;
   confidence: "high" | "medium" | "low" | null;
+  email_sends: number;
 };
 
-const badge: Record<JobRow["status"], string> = {
-  pending: "bg-yellow-500/20 text-yellow-500",
-  confirmed: "bg-green-500/20 text-green-500",
-  rejected: "bg-red-500/20 text-red-500",
-  expired: "bg-gray-500/20 text-gray-400",
-};
-
-const confColor: Record<string, string> = {
-  high: "text-green-500",
-  medium: "text-yellow-500",
-  low: "text-red-400",
+const statusStyle: Record<JobRow["status"], { text: string; label: string }> = {
+  pending: { text: "text-warn", label: "Waiting for customer" },
+  confirmed: { text: "text-ok", label: "Confirmed" },
+  rejected: { text: "text-bad", label: "Customer said no" },
+  expired: { text: "text-mute", label: "Link expired" },
 };
 
 export default function JobList({
   jobs,
   workerName,
+  onLogJob,
 }: {
   jobs: JobRow[];
   workerName: string;
+  onLogJob: () => void;
 }) {
-  const [copied, setCopied] = useState<string | null>(null);
+  const [note, setNote] = useState<Record<string, string>>({});
+  const [pending, start] = useTransition();
 
-  function linkFor(job: JobRow) {
-    return `${window.location.origin}/confirm/${job.confirm_token}`;
+  function resend(job: JobRow) {
+    start(async () => {
+      const r = await resendEmail(job.id);
+      setNote((n) => ({ ...n, [job.id]: r.ok ? "Email sent again." : (r.error ?? "Could not send.") }));
+    });
   }
 
-  function whatsapp(job: JobRow) {
+  function remind(job: JobRow) {
     const text =
-      `Hello ${job.customer_name}, this is ${workerName}. ` +
-      `Please confirm the ${job.job_type} work (₹${job.amount}) I did for you: ${linkFor(job)}`;
-    window.open(
-      `https://wa.me/91${job.customer_phone}?text=${encodeURIComponent(text)}`,
-      "_blank"
-    );
-  }
-
-  async function copy(job: JobRow) {
-    await navigator.clipboard.writeText(linkFor(job));
-    setCopied(job.id);
-    setTimeout(() => setCopied(null), 2000);
+      `Hello ${job.customer_name}, this is ${workerName}. I sent you an email from Kredo to ` +
+      `confirm the ${job.job_type} work (₹${job.amount}). Please check your inbox or spam and tap the link.`;
+    window.open(`https://wa.me/91${job.customer_phone}?text=${encodeURIComponent(text)}`, "_blank");
   }
 
   if (jobs.length === 0)
-    return <p className="text-gray-500 text-sm">No jobs yet. Log your first job above.</p>;
+    return (
+      <div className="sheet p-6 text-center">
+        <p className="font-display text-xl font-bold">No jobs yet</p>
+        <p className="mt-1 text-mute">After your next visit, log the job here. We email the customer to confirm it.</p>
+        <div className="mx-auto mt-4 max-w-xs">
+          <button onClick={onLogJob} className="btn">Log your first job</button>
+        </div>
+      </div>
+    );
 
   return (
-    <ul className="space-y-3">
-      {jobs.map((job) => (
-        <li key={job.id} className="border rounded p-3 space-y-2">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="font-medium">{job.job_type}</p>
-              <p className="text-sm text-gray-500">
-                {job.customer_name} · {job.job_date}
-              </p>
+    <ul className="sheet divide-y divide-line">
+      {jobs.map((job) => {
+        const s = statusStyle[job.status];
+        return (
+          <li key={job.id} className="space-y-2 p-4">
+            <div className="ledger">
+              <span className="font-display text-lg font-bold capitalize">{job.job_type}</span>
+              <span className="dots" />
+              <span className="font-display text-lg font-bold">
+                ₹{job.amount.toLocaleString("en-IN")}
+              </span>
             </div>
-            <div className="text-right">
-              <p className="font-semibold">₹{job.amount.toLocaleString("en-IN")}</p>
-              <span className={`text-xs px-2 py-0.5 rounded ${badge[job.status]}`}>
-                {job.status}
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 truncate text-mute">
+                {job.customer_name} · {job.job_date}
+              </span>
+              <span className={`flex shrink-0 items-center gap-2 font-semibold ${s.text}`}>
+                {job.status === "confirmed" && <ConfidenceDots level={job.confidence} />}
+                {s.label}
                 {job.rating ? ` · ${job.rating}★` : ""}
               </span>
-              {job.status === "confirmed" && job.confidence && (
-                <p className={`text-xs mt-1 ${confColor[job.confidence]}`}>
-                  {job.confidence} confidence
-                </p>
-              )}
             </div>
-          </div>
-          {job.status === "pending" && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => whatsapp(job)}
-                className="text-sm border rounded px-3 py-1 hover:bg-green-600/20"
-              >
-                Send on WhatsApp
-              </button>
-              <button
-                onClick={() => copy(job)}
-                className="text-sm border rounded px-3 py-1 hover:bg-white/10"
-              >
-                {copied === job.id ? "Copied!" : "Copy link"}
-              </button>
-            </div>
-          )}
-        </li>
-      ))}
+            {job.status === "pending" && (
+              <div className="space-y-2 pt-1">
+                {job.customer_email && (
+                  <p className="hint break-all">Email sent to {job.customer_email}</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {job.customer_email && job.email_sends < 3 && (
+                    <button onClick={() => resend(job)} disabled={pending} className="btn btn-small">
+                      Resend email
+                    </button>
+                  )}
+                  {job.customer_phone && (
+                    <button onClick={() => remind(job)} className="btn btn-quiet btn-small">
+                      Remind on WhatsApp
+                    </button>
+                  )}
+                </div>
+                {note[job.id] && <p className="hint">{note[job.id]}</p>}
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

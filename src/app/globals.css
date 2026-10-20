@@ -1,26 +1,166 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f3f5fa;
+  --sheet: #ffffff;
+  --ink: #14161f;
+  --mute: #566074;
+  --line: #d8dce8;
+  --stamp: #1b2ba8;
+  --stamp-dark: #131f85;
+  --tape: #ffc20e;
+  --ok: #0e7a4b;
+  --warn: #a8620a;
+  --bad: #b3261e;
+  color-scheme: light;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-sheet: var(--sheet);
+  --color-ink: var(--ink);
+  --color-mute: var(--mute);
+  --color-line: var(--line);
+  --color-stamp: var(--stamp);
+  --color-tape: var(--tape);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --font-sans: "Hind Madurai", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Hind Madurai", system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--paper);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 3px solid var(--stamp);
+  outline-offset: 2px;
+}
+
+@layer components {
+/* ---- Surfaces ---- */
+.sheet {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+/* A paper slip with notches where it would tear off */
+.tear {
+  position: relative;
+  border-top: 2px dashed var(--line);
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  margin-inline: calc(-1 * var(--pad, 1.25rem));
+  padding-inline: var(--pad, 1.25rem);
+}
+.tear::before,
+.tear::after {
+  content: "";
+  position: absolute;
+  top: -11px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+.tear::before { left: -11px; clip-path: inset(0 0 0 50%); }
+.tear::after { right: -11px; clip-path: inset(0 50% 0 0); }
+
+/* Ledger line: label ..... value */
+.ledger {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.ledger > .dots {
+  flex: 1;
+  border-bottom: 2px dotted var(--line);
+  transform: translateY(-4px);
+  min-width: 1rem;
+}
+
+/* ---- Controls ---- */
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 1.25rem;
+  border-radius: 10px;
+  background: var(--stamp);
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  transition: background 0.15s;
+}
+.btn:hover { background: var(--stamp-dark); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-quiet {
+  background: transparent;
+  color: var(--stamp);
+  border: 1.5px solid var(--stamp);
+}
+.btn-quiet:hover { background: color-mix(in srgb, var(--stamp) 8%, transparent); }
+.btn-small {
+  min-height: 40px;
+  width: auto;
+  padding: 0 0.9rem;
+  font-size: 0.95rem;
+  border-radius: 8px;
+}
+
+.field {
+  width: 100%;
+  min-height: 52px;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  padding: 0 0.9rem;
+  font-size: 1.0625rem;
+  color: var(--ink);
+}
+.field::placeholder { color: #8a93a6; }
+.field:focus {
+  outline: 3px solid color-mix(in srgb, var(--stamp) 30%, transparent);
+  border-color: var(--stamp);
+}
+.label { display: block; font-weight: 600; margin-bottom: 0.3rem; }
+.hint { color: var(--mute); font-size: 0.9rem; }
+.error {
+  color: var(--bad);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+/* ---- Stamp ---- */
+.stamp {
+  display: inline-block;
+  transform: rotate(-9deg);
+  color: var(--stamp);
+}
+@keyframes stamp-press {
+  0% { transform: scale(1.55) rotate(-9deg); opacity: 0; }
+  55% { transform: scale(0.94) rotate(-9deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-9deg); opacity: 1; }
+}
+.stamp-press { animation: stamp-press 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .stamp-press { animation: none; }
+}
+
 }

@@ -5,12 +5,12 @@ export interface ConfidenceInput {
     amount: number;
     createdAt: string;
     confirmedAt: string;
-    customerPhone: string;
+    customerKey: string;
     workerId: string;
   };
   /** This worker's other confirmed jobs in the last 30 days (excluding this job). */
-  workerRecent: { amount: number; customer_phone: string }[];
-  /** Confirmed jobs by this same customer phone with any worker (excluding this job). */
+  workerRecent: { amount: number; customerKey: string }[];
+  /** Confirmed jobs by this same customer (email) with any worker (excluding this job). */
   customerHistory: { worker_id: string }[];
 }
 
@@ -37,13 +37,13 @@ export function scoreJob(i: ConfidenceInput): ConfidenceResult {
 
   const seconds =
     (new Date(i.job.confirmedAt).getTime() - new Date(i.job.createdAt).getTime()) / 1000;
-  if (seconds < 120) {
+  if (seconds < 60) {
     flags.push("fast_confirm");
     score -= 25;
   }
 
   const pairCount = i.workerRecent.filter(
-    (j) => j.customer_phone === i.job.customerPhone
+    (j) => j.customerKey === i.job.customerKey
   ).length;
   if (pairCount >= 5) {
     flags.push("repeat_pair_burst");

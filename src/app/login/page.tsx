@@ -3,70 +3,116 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Wordmark from "@/components/Wordmark";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export default function LoginPage() {
   const supabase = createClient();
   const router = useRouter();
-  const [phone, setPhone] = useState("+91");
-  const [otp, setOtp] = useState("");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function sendOtp() {
+  const cleanEmail = email.trim().toLowerCase();
+
+  async function sendCode() {
     setError("");
-    const { error } = await supabase.auth.signInWithOtp({ phone });
-    if (error) setError(error.message);
-    else setSent(true);
+    if (!EMAIL_RE.test(cleanEmail)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.signInWithOtp({ email: cleanEmail });
+    setBusy(false);
+    if (error) {
+      setError(
+        error.message.toLowerCase().includes("rate")
+          ? "Too many emails requested. Wait a minute and try again."
+          : error.message
+      );
+    } else setSent(true);
   }
 
-  async function verifyOtp() {
+  async function verify() {
     setError("");
-    const { error } = await supabase.auth.verifyOtp({
-      phone,
-      token: otp,
-      type: "sms",
-    });
-    if (error) setError(error.message);
-    else router.push("/onboarding");
+    if (code.length < 6) {
+      setError("Enter the code from the email.");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.verifyOtp({ email: cleanEmail, token: code, type: "email" });
+    setBusy(false);
+    if (error) setError("That code is not correct or has expired. Check it or request a new one.");
+    else router.push("/dashboard");
   }
 
   return (
-    <main className="mx-auto max-w-sm p-6 space-y-4">
-      <h1 className="text-2xl font-bold">Kredo Login</h1>
+    <main className="mx-auto w-full max-w-md px-5 pt-6 pb-12">
+      <Wordmark />
+      <h1 className="font-display mt-12 text-4xl font-extrabold tracking-tight">
+        {sent ? "Check your email" : "Sign in"}
+      </h1>
+      <p className="mt-2 text-mute">
+        {sent
+          ? `We sent a code to ${cleanEmail}. It can take a minute. Look in spam if you do not see it.`
+          : "Enter your email address. We will email you a code, no password needed."}
+      </p>
 
-      <input
-        className="w-full border rounded p-2 bg-transparent"
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-        placeholder="+91XXXXXXXXXX"
-        disabled={sent}
-      />
-
-      {!sent ? (
-        <button
-          onClick={sendOtp}
-          className="w-full bg-green-600 hover:bg-green-700 text-white font-medium rounded p-2"
-        >
-          Send OTP
-        </button>
-      ) : (
-        <>
+      <div className="mt-8 space-y-4">
+        <div>
+          <label htmlFor="email" className="label">Email address</label>
           <input
-            className="w-full border rounded p-2 bg-transparent"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            placeholder="Enter OTP"
+            id="email"
+            type="email"
+            className="field"
+            autoComplete="email"
+            inputMode="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={sent}
           />
-          <button
-            onClick={verifyOtp}
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-medium rounded p-2"
-          >
-            Verify
-          </button>
-        </>
-      )}
+        </div>
 
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+        {sent && (
+          <div>
+            <label htmlFor="code" className="label">Code from the email</label>
+            <input
+              id="code"
+              className="field text-center text-2xl tracking-[0.3em]"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={10}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              autoFocus
+            />
+          </div>
+        )}
+
+        {error && <p className="error" role="alert">{error}</p>}
+
+        {!sent ? (
+          <button onClick={sendCode} disabled={busy} className="btn">
+            {busy ? "Sending…" : "Email me a code"}
+          </button>
+        ) : (
+          <>
+            <button onClick={verify} disabled={busy} className="btn">
+              {busy ? "Checking…" : "Sign in"}
+            </button>
+            <button
+              onClick={() => { setSent(false); setCode(""); setError(""); }}
+              className="w-full py-2 font-semibold text-stamp underline underline-offset-4"
+            >
+              Change email or send a new code
+            </button>
+          </>
+        )}
+      </div>
     </main>
   );
 }

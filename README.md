@@ -1,32 +1,29 @@
-# Kredo (Part 4)
+# Kredo (Part 6: email verification)
 
 Your work, your proof.
 
-## New in Part 4
-- **Confidence label** (high / medium / low) on every confirmed job, from rule-based checks
-- **Income statement PDF** per month, with a QR code that opens `/verify/<id>`
-- **Verify page** `/verify/<id>` showing the figures stored when the statement was issued
-- **Flag review** at `/admin/flags` (admins only)
-- New fraud rule: max 3 jobs per day for the same customer
+## What changed
+- Workers sign in with an emailed code (no phone OTP, no SMS cost).
+- When a worker logs a job, Kredo emails the customer a confirmation link. The worker never sees the link, so only someone with access to that inbox can confirm. That is the verification.
+- Optional customer mobile is used only for a WhatsApp reminder ("check your email").
+- "Resend email" on pending jobs (max 3 sends per job).
+- Security fix: the database now stops workers from reading confirmation tokens or inserting jobs directly (see supabase/part6.sql).
 
-## Setup
-1. Unzip over your existing `kredo` folder (`.env.local` is not touched).
-2. Run `npm install` (new packages: pdf-lib, qrcode).
-3. Supabase -> SQL Editor -> paste `supabase/part4.sql` -> Run.
-4. Optional, for the flag review page, add to `.env.local` AND to Vercel -> Settings -> Environment Variables:
-   `ADMIN_PHONES=9999999999`  (10-digit numbers, comma separated)
-5. Local test: `npm run dev`. To deploy: `git add .`, `git commit -m "Part 4"`, `git push`.
+## Setup (do these in order)
+1. Unzip over your existing `kredo` folder, then run `npm install`.
+2. Supabase -> SQL Editor -> paste `supabase/part6.sql` -> Run.
+3. Free email sender (Brevo, 300 emails/day, no card): create an account, verify a sender address, then SMTP & API -> SMTP -> create an SMTP key.
+4. Add to `.env.local` AND Vercel -> Settings -> Environment Variables (see `.env.example`):
+   NEXT_PUBLIC_SITE_URL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM
+5. Supabase -> Authentication -> Emails -> SMTP Settings -> Enable custom SMTP with the same Brevo details.
+   Then Authentication -> Emails -> Templates: in BOTH "Magic Link" and "Confirm signup", put {{ .Token }} in the body (for example: Your Kredo code is {{ .Token }}).
+   Optionally raise Authentication -> Rate Limits -> emails per hour.
+6. Deploy: git add . / git commit -m "Part 6" / git push
 
-## How confidence is scored
-Start at 60. Then:
-- confirmed within 2 minutes of logging: -25 (flag fast_confirm)
-- 5+ confirmed jobs with the same customer in 30 days: -20 (repeat_pair_burst)
-- 1-4 earlier jobs with the same customer: +10 (genuine repeat customer)
-- same amount 3+ times in 30 days: -10 (same_amount_repeat)
-- amount over 5x the worker's median (needs 5+ jobs): -15 (amount_outlier)
-- customer has also confirmed jobs for 1 other worker: +10, for 2+ others: +20
-High is 70 or more, medium 45 or more, low below 45. Tune these numbers with pilot data.
+## Local testing without email
+If the SMTP variables are empty, `npm run dev` prints the customer email (with the link) in the terminal instead of sending it. Worker login still needs step 5 (Supabase must be able to send the code).
 
-## Known limits
-- Statement PDFs use a basic Latin font: Tamil text in names or job descriptions prints as "?". Embedding a Tamil font is a later task.
-- Customer confirmation still uses the phone-number match. Real OTP is next, once your SMS provider and DLT registration are sorted.
+## Notes
+- Existing phone-based test accounts are separate from email accounts: signing in by email creates a new worker account.
+- Email is free to fake, so a dishonest worker can invent customer emails. The confidence labels and /admin/flags are the defence; tune them with real pilot data.
+- Free email plans have daily limits (Brevo free: 300/day).
