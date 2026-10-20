@@ -1,4 +1,4 @@
-# Kredo (Part 7: WhatsApp rating link)
+# Kredo (Part 7: WhatsApp rating link + number check)
 
 Your work, your proof.
 
@@ -9,6 +9,9 @@ Your work, your proof.
 - Pending jobs in the Jobs list keep the same two buttons, so a worker can share the link again any time within 7 days.
 - Removed: customer email form field, "Resend email", SMTP settings, nodemailer.
 - No new SQL. `supabase/part6.sql` still applies: workers cannot read `confirm_token` directly. The link is fetched by a server action (`getJobLink`) that first checks the job belongs to the signed-in worker.
+
+- **Share on WhatsApp** opens the chat with that customer's number and the message ready to send.
+- **Number check:** the customer's rating page asks for their mobile number below the rating. If it does not match the number the worker entered, nothing is saved (confirm or reject). Old jobs with no stored mobile number cannot be confirmed; the worker logs them again.
 
 ## Setup
 1. Unzip over your existing `kredo` folder.

@@ -40,6 +40,10 @@ export default function ShareButtons({ info, jobId }: { info?: ShareInfo; jobId?
   function whatsapp() {
     setNote("");
     setManual("");
+    if (info) {
+      window.open(whatsappUrl(info.phone, info.message), "_blank");
+      return;
+    }
     // Open the tab right away (inside the tap) so phone browsers do not block it.
     const tab = window.open("", "_blank");
     start(async () => {

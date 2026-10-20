@@ -16,6 +16,7 @@ export default function ConfirmFlow({
     null
   );
   const [rating, setRating] = useState(0);
+  const [phone, setPhone] = useState("");
 
   if (state?.done === "confirmed")
     return (
@@ -57,6 +58,28 @@ export default function ConfirmFlow({
           ))}
         </div>
         <input type="hidden" name="rating" value={rating} />
+      </div>
+
+      <div>
+        <label htmlFor="customer_phone" className="label">Your mobile number</label>
+        <div className="flex gap-2">
+          <span className="field flex w-20 items-center justify-center bg-paper font-semibold">+91</span>
+          <input
+            id="customer_phone"
+            name="customer_phone"
+            className="field"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            maxLength={10}
+            placeholder="10-digit number"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+            required
+          />
+        </div>
+        <p className="hint mt-1">
+          Enter the number {workerName} has for you. Your answer is saved only if it matches.
+        </p>
       </div>
 
       <div className="space-y-2">

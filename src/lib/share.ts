@@ -20,9 +20,10 @@ export function shareMessage(a: {
   );
 }
 
-// Opens WhatsApp chat with the customer if we have their number, otherwise the contact picker.
+// Opens the WhatsApp chat with the customer (number filled in) and the message ready to send.
+// If an old job has no mobile number, WhatsApp opens its contact picker instead.
 export function whatsappUrl(phone: string | null | undefined, text: string): string {
   const digits = (phone ?? "").replace(/\D/g, "").slice(-10);
-  const base = digits.length === 10 ? `https://wa.me/91${digits}` : "https://wa.me/";
-  return `${base}?text=${encodeURIComponent(text)}`;
+  const to = digits.length === 10 ? `phone=91${digits}&` : "";
+  return `https://api.whatsapp.com/send?${to}text=${encodeURIComponent(text)}`;
 }

@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scoreJob } from "@/lib/confidence";
+import { isValidIndianMobile, normalizePhone } from "@/lib/phone";
 
 const EXPIRY_DAYS = 7;
 
@@ -16,6 +17,9 @@ export async function confirmJob(
   const rating = Number(formData.get("rating") ?? 0);
 
   if (decision !== "confirm" && decision !== "reject") return { error: "Choose Yes or No." };
+
+  const typedPhone = normalizePhone(String(formData.get("customer_phone") ?? ""));
+  if (!isValidIndianMobile(typedPhone)) return { error: "Enter your 10-digit mobile number." };
 
   const admin = createAdminClient();
   const { data: job } = await admin
@@ -32,6 +36,14 @@ export async function confirmJob(
     await admin.from("jobs").update({ status: "expired" }).eq("id", job.id);
     return { error: "This link has expired. Ask the worker to log the job again." };
   }
+
+  // Verification: the number typed here must match the number the worker entered for this job.
+  if (!job.customer_phone)
+    return { error: "This job has no mobile number to check. Ask the worker to log it again." };
+  if (normalizePhone(job.customer_phone) !== typedPhone)
+    return {
+      error: "This number does not match the one the worker entered, so nothing was saved.",
+    };
 
   if (decision === "confirm" && !(rating >= 1 && rating <= 5))
     return { error: "Tap the stars to rate the work from 1 to 5." };

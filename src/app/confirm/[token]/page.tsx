@@ -13,7 +13,7 @@ export default async function ConfirmPage({
 
   const { data: job } = await admin
     .from("jobs")
-    .select("job_type, amount, job_date, status, workers(name, trade)")
+    .select("job_type, amount, job_date, status, customer_phone, workers(name, trade)")
     .eq("confirm_token", token)
     .single();
 
@@ -58,7 +58,14 @@ export default async function ConfirmPage({
                 {workerName} sent you this link to confirm this job. Rate the work and answer
                 below. If you do not know {workerName}, just close this page.
               </p>
-              <ConfirmFlow token={token} workerName={workerName} />
+              {job.customer_phone ? (
+                <ConfirmFlow token={token} workerName={workerName} />
+              ) : (
+                <p className="text-mute">
+                  This job has no mobile number to check. Ask {workerName} to log it again and send
+                  you a new link.
+                </p>
+              )}
             </>
           ) : (
             <div className="flex items-center justify-between gap-3">
